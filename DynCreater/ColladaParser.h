@@ -15,6 +15,9 @@ class ColladaParser
 public:
 	ColladaParser(std::string);
 private:
+
+	int error = 0;
+
 	std::string fileName;
 	std::ifstream *inFile;
 	std::ofstream *outFile;

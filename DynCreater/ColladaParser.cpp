@@ -14,8 +14,16 @@ void ColladaParser::initialize()
     type = "melee";
 	loadAnim(type, false);	// do not load skeleton
 
-    saveAnim();
-
+	if (!error)
+	{
+		saveAnim();
+		std::cout << "Successfuly created : " << fileName << ".dyn " << std::endl;
+	}
+	else
+	{
+		std::cerr << "Could not finish creating dyn, some of the required files missing" << std::endl;
+	}
+	system("pause");	// press any key to continue message 
 }
 
 void ColladaParser::loadAnim(std::string& type, bool skeletonSetup)
@@ -23,9 +31,11 @@ void ColladaParser::loadAnim(std::string& type, bool skeletonSetup)
 	std::string fileNameDae = fileName + "_" + type + ".dae";
 	inFile = new std::ifstream(fileNameDae);
 
-	if (inFile == nullptr)
+	if (!inFile->good())
 	{
 		std::cerr << "The file :: "<<  fileNameDae <<" ::  not found " << std::endl;
+		error = 1;
+		return;
 	}
 
 	std::string line;
