@@ -1,18 +1,24 @@
 #include "ColladaParser.h"
 
-ColladaParser::ColladaParser(std::string fileName)
+ColladaParser::ColladaParser(std::string fileName,std::vector<std::string>& types)
 {
 	this->fileName = fileName;
+	this->types = types;
 	initialize();
 }
 
 void ColladaParser::initialize()
 {
-	std::string type = "ranged";
-	loadAnim(type, true);  // load skeleton too
 
-    type = "melee";
-	loadAnim(type, false);	// do not load skeleton
+	for (int i = 0; i < types.size(); i++)
+	{
+		bool loadSkeleton = false;
+		if (i == 0)
+		{
+			loadSkeleton = true;
+		}
+	    loadAnim(types[i], loadSkeleton);
+	}
 
 	if (!error)
 	{
@@ -28,7 +34,7 @@ void ColladaParser::initialize()
 
 void ColladaParser::loadAnim(std::string& type, bool skeletonSetup)
 {
-	std::string fileNameDae = fileName + "_" + type + ".dae";
+	std::string fileNameDae = "dae/" + fileName + "_" + type + ".dae";
 	inFile = new std::ifstream(fileNameDae);
 
 	if (!inFile->good())
@@ -99,6 +105,8 @@ void ColladaParser::loadAnim(std::string& type, bool skeletonSetup)
 			break;
 		}
 	}
+	
+
 	library_animations(type);
 	
 	/////////////////////////////////////////////////////////////////
@@ -113,6 +121,7 @@ void ColladaParser::library_geometries(std::vector<float> data[], std::vector<in
 	std::string line;
 	int dataIndex = -1;
 
+	bool colorsPresent = false;	// detect if color array is there, and skip accordingly
 
 	while (std::getline(*inFile, line))
 	{
@@ -123,6 +132,11 @@ void ColladaParser::library_geometries(std::vector<float> data[], std::vector<in
 		if (line.find("<float_array") != std::string::npos)
 		{
 			dataIndex++;
+			if (dataIndex > 2)
+			{
+				colorsPresent = true;
+				continue;
+			}
 			size_t findstart, findend;
 			findstart = line.find(">");
 			findend = line.find("<", findstart + 1);
@@ -145,8 +159,12 @@ void ColladaParser::library_geometries(std::vector<float> data[], std::vector<in
 
 			std::istringstream iss(line);
 			int i;
+			int length = 0;
 			while (iss >> i)
 			{
+				length++;
+				if (colorsPresent && (length) % 4 == 0)
+					continue;
 				p.push_back(i);
 			}
 		}
@@ -588,7 +606,7 @@ void ColladaParser::worldBindMatrix(int parentID)
 // ....................OUTPUT................................
 void ColladaParser::saveAnim()
 {
-	std::string outName = (this->fileName) + ".dyn";
+	std::string outName = "dyn/" + (this->fileName) + ".dyn";
 	outFile = new std::ofstream(outName);
 
 	////////////////////////output skeleton/////////////////////////////////

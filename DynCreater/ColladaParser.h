@@ -13,12 +13,13 @@
 class ColladaParser
 {
 public:
-	ColladaParser(std::string);
+	ColladaParser(std::string, std::vector<std::string>& types);
 private:
 
 	int error = 0;
 
 	std::string fileName;
+	std::vector<std::string> types;
 	std::ifstream *inFile;
 	std::ofstream *outFile;
 
