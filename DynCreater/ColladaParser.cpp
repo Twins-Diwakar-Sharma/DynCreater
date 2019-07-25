@@ -29,6 +29,7 @@ void ColladaParser::initialize()
 	{
 		std::cerr << "Could not finish creating dyn, some of the required files missing" << std::endl;
 	}
+
 	system("pause");	// press any key to continue message 
 }
 
@@ -413,19 +414,28 @@ void ColladaParser::createVertexData(std::vector<float> data[], std::vector<int>
 	
 	for (int i = 0; i < vcount.size(); i++)
 	{
-		if (vcount[i] <= 3)
+		if (vcount[i] == 1)
 		{
-			int j = 0;
-			for (; j < vcount[i]; j++)
-			{
-				jid.push_back(v[cnt]);	cnt++;
-				w.push_back(data[3][v[cnt]]);	cnt++;
-			}
-			for (; j < 3; j++)
-			{
-				jid.push_back(-1);
-				w.push_back(0);	
-			}
+			jid.push_back(v[cnt]); cnt++;	jid.push_back(-1);	jid.push_back(-1);
+			w.push_back(data[3][v[cnt]]);	cnt++;	w.push_back(0);	w.push_back(0);
+		}
+		else if (vcount[i] == 2)
+		{
+			jid.push_back(v[cnt]);	cnt++;
+			w.push_back(data[3][v[cnt]]);	cnt++;
+			jid.push_back(v[cnt]);	cnt++;
+			w.push_back(data[3][v[cnt]]);	cnt++;
+			jid.push_back(-1);
+			w.push_back(0);
+		}
+		else if (vcount[i] == 3)
+		{
+			jid.push_back(v[cnt]);	cnt++;
+			w.push_back(data[3][v[cnt]]);	cnt++;
+			jid.push_back(v[cnt]);	cnt++;
+			w.push_back(data[3][v[cnt]]);	cnt++;
+			jid.push_back(v[cnt]);	cnt++;
+			w.push_back(data[3][v[cnt]]);	cnt++;
 		}
 		else
 		{
