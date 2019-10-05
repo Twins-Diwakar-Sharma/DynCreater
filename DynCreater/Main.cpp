@@ -3,11 +3,12 @@
 int main()
 {
 	std::string fileName("");
+	std::cout << "Custom Collada Parser for Blender 2.80 " << std::endl;
 	std::cout << "Enter filename without suffix " << std::endl;
 	std::cin >> fileName;
 
 	int noOfAnims = 0;
-	std::cout << "\n\nEnter no of animations :  ";
+	std::cout << "\n\nEnter no of animations : ";
 	std::cin >> noOfAnims;
 
 	std::vector<std::string> types;
