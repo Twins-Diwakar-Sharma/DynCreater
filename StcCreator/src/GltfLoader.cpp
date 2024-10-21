@@ -107,7 +107,7 @@ void convertGLTF(std::string gltfPath, std::string binPath, std::string outPath)
     vertexData[i*8 + 2] = pos[i*3 + 2] * scale[2] + translation[2];
 
     vertexData[i*8 + 3] = tex[i*2 + 0];
-    vertexData[i*8 + 4] = tex[i*2 + 1];
+    vertexData[i*8 + 4] = 1.0f - tex[i*2 + 1];
 
     vertexData[i*8 + 5] = norm[i*3 + 0];
     vertexData[i*8 + 6] = norm[i*3 + 1];
