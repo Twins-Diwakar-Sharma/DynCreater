@@ -1,5 +1,5 @@
 #program name
-prog =StaCreator.exe
+prog =StcCreator.exe
 
 #directories
 srcDir =src

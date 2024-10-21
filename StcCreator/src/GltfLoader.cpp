@@ -12,6 +12,32 @@ void convertGLTF(std::string gltfPath, std::string binPath, std::string outPath)
   std::ifstream infile(gltfPath);
   std::string line;
   size_t found;
+
+  float scale[3] = {1};
+  float translation[3] = {0};
+
+  do{
+    std::getline(infile, line);
+    found = line.find("scale");
+  }while(found == std::string::npos);
+  std::getline(infile, line); // scalex
+  scale[0] = std::stof(line);
+  std::getline(infile, line); // scaley
+  scale[1] = std::stof(line);
+  std::getline(infile, line); // scalez
+  scale[2] = std::stof(line);
+
+  do{
+    std::getline(infile, line);
+    found = line.find("translation");
+  }while(found == std::string::npos);
+  std::getline(infile, line); // translationx
+  translation[0] = std::stof(line);
+  std::getline(infile, line); // translationy
+  translation[1] = std::stof(line);
+  std::getline(infile, line); // translationz
+  translation[2] = std::stof(line);
+  
   while(std::getline(infile, line))
   {
     found = line.find("accessors"); 
@@ -76,12 +102,12 @@ void convertGLTF(std::string gltfPath, std::string binPath, std::string outPath)
   std::vector<float> vertexData(pos.size() + norm.size() + tex.size());
   for(int i=0; i<bufferCount[0]; i++)
   {
-    vertexData[i*8 + 0] = pos[i*3 + 0];
-    vertexData[i*8 + 1] = pos[i*3 + 1];
-    vertexData[i*8 + 2] = pos[i*3 + 2];
+    vertexData[i*8 + 0] = pos[i*3 + 0] * scale[0] + translation[0];
+    vertexData[i*8 + 1] = pos[i*3 + 1] * scale[1] + translation[1];
+    vertexData[i*8 + 2] = pos[i*3 + 2] * scale[2] + translation[2];
 
-    vertexData[i*8 + 3] = tex[i*3 + 0];
-    vertexData[i*8 + 4] = tex[i*3 + 1];
+    vertexData[i*8 + 3] = tex[i*2 + 0];
+    vertexData[i*8 + 4] = tex[i*2 + 1];
 
     vertexData[i*8 + 5] = norm[i*3 + 0];
     vertexData[i*8 + 6] = norm[i*3 + 1];
