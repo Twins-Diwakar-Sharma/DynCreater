@@ -13,30 +13,57 @@ void convertGLTF(std::string gltfPath, std::string binPath, std::string outPath)
   std::string line;
   size_t found;
 
-  float scale[3] = {1};
+  float scale[3] = {1,1,1};
   float translation[3] = {0};
-
+  bool scaleFound = false; 
+  std::getline(infile, line);
   do{
-    std::getline(infile, line);
     found = line.find("scale");
-  }while(found == std::string::npos);
-  std::getline(infile, line); // scalex
-  scale[0] = std::stof(line);
-  std::getline(infile, line); // scaley
-  scale[1] = std::stof(line);
-  std::getline(infile, line); // scalez
-  scale[2] = std::stof(line);
+    if(found != std::string::npos) {
+      scaleFound = true;
+      break;
+    }
+  }while(std::getline(infile,line));
+  
+  if(scaleFound) 
+  {
+    std::getline(infile, line); // scalex
+    scale[0] = std::stof(line);
+    std::getline(infile, line); // scaley
+    scale[1] = std::stof(line);
+    std::getline(infile, line); // scalez
+    scale[2] = std::stof(line);
+  }
+  else
+  {
+    infile.close();
+    infile.open(gltfPath);
+  }
+  
+  bool translateFound = true;
+  size_t meshesString; 
 
   do{
     std::getline(infile, line);
     found = line.find("translation");
+    meshesString = line.find("meshes");
+    if(meshesString != std::string::npos) {
+      translateFound = false;
+      break;
+    }
   }while(found == std::string::npos);
-  std::getline(infile, line); // translationx
-  translation[0] = std::stof(line);
-  std::getline(infile, line); // translationy
-  translation[1] = std::stof(line);
-  std::getline(infile, line); // translationz
-  translation[2] = std::stof(line);
+  
+  if(translateFound) 
+  {
+
+    std::getline(infile, line); // translationx
+    translation[0] = std::stof(line);
+    std::getline(infile, line); // translationy
+    translation[1] = std::stof(line);
+    std::getline(infile, line); // translationz
+    translation[2] = std::stof(line);
+
+  }
   
   while(std::getline(infile, line))
   {
