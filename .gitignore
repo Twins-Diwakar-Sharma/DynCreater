@@ -266,7 +266,6 @@ __pycache__/
 .ccls-cache/*
 .ccls
 **/.ccls
-**/compile_commands.json
 
 #build
 **/build/**
