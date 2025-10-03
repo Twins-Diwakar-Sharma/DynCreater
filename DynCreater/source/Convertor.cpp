@@ -99,6 +99,22 @@ std::string dyn::convert(std::string fullPath)
       }
     }
   }
+  
+  // convert matrix to pos, quat, scale
+  std::vector<std::tuple<Vec3,Quat,Vec3>> invBindTuple(invBindMatrices.size());
+  for(unsigned int k=0; k<invBindTuple.size(); k++)
+  {
+    Vec3 scaleFromMat;
+    scaleFromMat[0] = (float)(Vec3(invBindMatrices[k][0][0], invBindMatrices[k][1][0], invBindMatrices[k][2][0]));
+    scaleFromMat[1] = (float)(Vec3(invBindMatrices[k][0][1], invBindMatrices[k][1][1], invBindMatrices[k][2][1]));
+    scaleFromMat[2] = (float)(Vec3(invBindMatrices[k][0][2], invBindMatrices[k][1][2], invBindMatrices[k][2][2]));
+    Vec3 posFromMat(invBindMatrices[k][0][3], invBindMatrices[k][1][3], invBindMatrices[k][2][3]);
+    Mat3 rotMat(invBindMatrices[k][0][0]/scaleFromMat[0], invBindMatrices[k][0][1]/scaleFromMat[1], invBindMatrices[k][0][2]/scaleFromMat[2],
+                invBindMatrices[k][1][0]/scaleFromMat[0], invBindMatrices[k][1][1]/scaleFromMat[1], invBindMatrices[k][1][2]/scaleFromMat[2],
+                invBindMatrices[k][2][0]/scaleFromMat[0], invBindMatrices[k][2][1]/scaleFromMat[1], invBindMatrices[k][2][2]/scaleFromMat[2]);
+    Quat rotQuat = (Quat)(rotMat);
+  }
+
 
   std::cout << data["skins"][0]["joints"].size() << std::endl;
   for(int i=0; i<data["skins"][0]["joints"].size(); i++)
@@ -111,8 +127,238 @@ std::string dyn::convert(std::string fullPath)
   // for each bone index, list the index of children, first list vector size of children, then indices
 
 
-  // Animation Data: vector of keyframes
-  // for each keyframe: struct of rotation, scale, translation for each bone
+  // Animation Data
+  //  => vector of animations
+  //  ==> vector of keyframes
+  //  ===> for each keyframe: struct of rotation, scale, translation for each bone
+  unsigned int nAnims = data["animations"].size();
+  unsigned int nJoints = data["skins"][0]["joints"].size();
+  std::vector<std::vector<std::vector<std::tuple<Vec3,Quat,Vec3>>>> anims(nAnims);
+  std::cout << "nAnims : " << nAnims << " && nJoints : " << nJoints << std::endl;
+  for(unsigned int animIndex=0; animIndex < nAnims; animIndex++)
+  {
+    unsigned int accessorNo = data["animations"][animIndex]["samplers"][0]["input"];
+    unsigned int bufferNo = data["accessors"][accessorNo]["bufferView"]; 
+    unsigned int nKeys = data["accessors"][accessorNo]["count"]; 
+    unsigned int byteOffset = data["bufferViews"][bufferNo]["byteOffset"]; 
+    
+    for(unsigned int keyIndex=0; keyIndex < nKeys; keyIndex++)
+    {
+      anims[animIndex].push_back(std::vector<std::tuple<Vec3,Quat,Vec3>>(nJoints));
+    }
+    std::cout << anims[animIndex].size() << std::endl;
+    std::cout << anims[animIndex][1].size() << std::endl;
 
+      std::cout << "joint loop" << std::endl;
+
+    for(unsigned int jointIndex=0; jointIndex < nJoints; jointIndex++)
+    {
+      // instead of index, we use the order as in skins[0].joints, why idk
+      //unsigned int asliJointIndex = data["skins"][0]["joints"][jointIndex]; // yeh mein kyun kar rha hoon? patanhi
+      unsigned int asliJointIndex = jointIndex;
+      // iterate channels, find accessor no for translation, rotation, scale, for current jointNo
+      unsigned int posIndex=-1, rotIndex=-1, scaIndex=-1;
+      for(unsigned int chan=0; chan<data["animations"][animIndex]["channels"].size(); chan++)
+      {
+        nlohmann::json& channelJson = data["animations"][animIndex]["channels"][chan];
+        
+        if(channelJson["target"]["node"] == asliJointIndex)
+        {
+          std::string channelPath = channelJson["target"]["path"];
+          if(channelPath.compare("rotation") == 0)
+          {
+            rotIndex = (unsigned int)channelJson["sampler"];
+            rotIndex = (unsigned int)data["animations"][animIndex]["samplers"][rotIndex]["output"];
+          }
+          else if(channelPath.compare("translation") == 0)
+          {
+            posIndex = (unsigned int)channelJson["sampler"];
+            posIndex = (unsigned int)data["animations"][animIndex]["samplers"][posIndex]["output"];
+          }
+          else if(channelPath.compare("scale") == 0)
+          {
+            scaIndex = (unsigned int)channelJson["sampler"];
+            scaIndex = (unsigned int)data["animations"][animIndex]["samplers"][scaIndex]["output"];
+          }
+        }    
+      }
+
+      std::cout << "fetch pos rot scale " << std::endl;
+      unsigned int buffViewNo = (unsigned int)(data["accessors"][posIndex]["bufferView"]);
+      byteOffset = (unsigned int) data["bufferViews"][buffViewNo]["byteOffset"];
+      gltfBin.seekg(byteOffset);
+      std::vector<Vec3> jointPositions(nKeys);
+      for(unsigned int key=0; key<nKeys; key++)
+      {
+        for(int dim=0; dim<3; dim++)
+        {
+          float fl;
+          gltfBin.read((char*)&fl, sizeof(float));
+          jointPositions[key][dim] = fl;
+        }
+      }
+
+      std::cout << "done joint pos " << std::endl;
+      
+      buffViewNo = (unsigned int)(data["accessors"][rotIndex]["bufferView"]);
+      byteOffset = (unsigned int) data["bufferViews"][buffViewNo]["byteOffset"];
+      gltfBin.seekg(byteOffset);
+      std::vector<Quat> jointRotations(nKeys);
+      // quaternions stored [x y z w]
+      for(unsigned int key=0; key<nKeys; key++)
+      {
+        for(int dim=1; dim<4; dim++)
+        {
+          float fl;
+          gltfBin.read((char*)&fl, sizeof(float));
+          jointRotations[key][dim] = fl;
+        }
+        float fl;
+        gltfBin.read((char*)&fl, sizeof(float));
+        jointRotations[key][0] = fl;
+      }
+
+
+      std::cout << "done joint rot " << std::endl;
+      
+      buffViewNo = (unsigned int)(data["accessors"][scaIndex]["bufferView"]);
+      byteOffset = (unsigned int)data["bufferViews"][buffViewNo]["byteOffset"];
+      gltfBin.seekg(byteOffset);
+      std::vector<Vec3> jointScales(nKeys);
+      for(unsigned int key=0; key<nKeys; key++)
+      {
+        for(int dim=0; dim<3; dim++)
+        {
+          float fl;
+          gltfBin.read((char*)&fl, sizeof(float));
+          jointScales[key][dim] = fl;
+        }
+      }
+
+
+      std::cout << "done joint scale " << std::endl;
+      
+      std::cout << "keyframed loop starts" << std::endl;
+      for(unsigned int key=0; key<nKeys; key++)
+      {
+        anims[animIndex][key][asliJointIndex] = std::make_tuple(Vec3(jointPositions[key]), Quat(jointRotations[key]), Vec3(jointScales[key]));
+      }
+
+    }
+  }
+  gltfBin.close();
+  std::cout << "Gathering information done" << std::endl;
+  std::cout << "Generating new file" << std::endl;
+  
+  unsigned int comps = 3 + 2 + 3 + 4 + 4;
+  std::vector<float> interleavedData(position.size() * comps );
+  for(unsigned int i=0; i<position.size(); i++)
+  {
+    interleavedData[i*comps + 0] = position[i][0];
+    interleavedData[i*comps + 1] = position[i][1];
+    interleavedData[i*comps + 2] = position[i][2];
+
+    interleavedData[i*comps + 3] = texCoord[i][0];
+    interleavedData[i*comps + 4] = texCoord[i][1];
+
+    interleavedData[i*comps + 5] = normal[i][0];
+    interleavedData[i*comps + 6] = normal[i][1];
+    interleavedData[i*comps + 7] = normal[i][2];
+
+    interleavedData[i*comps + 8] = joint[i][0];
+    interleavedData[i*comps + 9] = joint[i][1];
+    interleavedData[i*comps + 10] = joint[i][2];
+    interleavedData[i*comps + 11] = joint[i][3];
+
+    interleavedData[i*comps + 12] = weight[i][0];
+    interleavedData[i*comps + 13] = weight[i][1];
+    interleavedData[i*comps + 14] = weight[i][2];
+    interleavedData[i*comps + 15] = weight[i][3];
+
+  }
+  
+  // interleaved data
+  std::cout << "writing interleaved data" << std::endl;
+  std::ofstream dynBin(dir + name + ".dyn", std::ios::out | std::ios::binary);
+  unsigned int interleavedDataSize = interleavedData.size();
+  dynBin.write((char*) &(interleavedDataSize), sizeof(unsigned int));
+  for(unsigned int i=0; i<interleavedDataSize; i++)
+  {
+    dynBin.write((char*) &(interleavedData[i]), sizeof(float));
+  }
+
+  // indices
+  
+  unsigned int indicesSize = indices_size;
+  dynBin.write((char*) &(indicesSize), sizeof(unsigned int)); 
+  for(unsigned int i=0; i<indicesSize; i++)
+  {
+    dynBin.write((char*) &(indices[i]), sizeof(unsigned int));
+  }
+  
+  // bones information
+  std::cout << "writing skeleton structure" << std::endl;
+  unsigned int jointsSize = data["skins"][0]["joints"].size();
+  dynBin.write((char*) &(jointsSize), sizeof(unsigned int));
+  for(unsigned int i=0; i<jointsSize; i++)
+  {
+    // size of string
+    std::string name = std::string(data["nodes"][i]["name"]);
+    unsigned int sizeString = name.size();
+    dynBin.write((char*) &(sizeString), sizeof(unsigned int));
+    for(unsigned int ch=0; ch<sizeString; ch++)
+    {
+      dynBin.write((char*) &(name[ch]), sizeof(char));
+    }
+    unsigned int numChildren = data["nodes"][i].contains("children") ? (unsigned int)(data["nodes"][i]["children"]).size() : 0;
+    dynBin.write((char*) &(numChildren), sizeof(unsigned int));
+    for(unsigned int kid = 0; kid < numChildren; kid++)
+    {
+      unsigned int kidIndex = (unsigned int)(data["nodes"][i]["children"][kid]);
+      dynBin.write((char*) &(kidIndex), sizeof(unsigned int));
+    }
+  }
+
+  
+  // animations
+  std::cout << "writing animations " << std::endl;
+  dynBin.write((char*) &(nAnims), sizeof(unsigned int));
+  for(unsigned int animIndex=0; animIndex < nAnims; animIndex++)
+  {    
+    std::string animName = data["animations"][animIndex]["name"];
+    unsigned int animNameSize = animName.size();
+    dynBin.write((char*) &(animNameSize), sizeof(unsigned int)); 
+    for(unsigned int ch=0; ch<animNameSize; ch++)
+    {
+      dynBin.write((char*) &(animName[ch]), sizeof(char)); 
+    }
+    
+    unsigned int nKeys = anims[animIndex].size();
+    dynBin.write((char*) &(nKeys), sizeof(unsigned int));
+    for(unsigned int key=0; key<nKeys; key++)
+    {
+      for(unsigned int bone; bone<jointsSize; bone++)
+      {
+        Vec3 pos = std::get<0>(anims[animIndex][key][bone]);
+        Quat rot = std::get<1>(anims[animIndex][key][bone]);
+        Vec3 sca = std::get<2>(anims[animIndex][key][bone]);
+
+        dynBin.write((char*) &(pos[0]), sizeof(float));
+        dynBin.write((char*) &(pos[1]), sizeof(float));
+        dynBin.write((char*) &(pos[2]), sizeof(float));
+
+        dynBin.write((char*) &(rot[0]), sizeof(float));
+        dynBin.write((char*) &(rot[1]), sizeof(float));
+        dynBin.write((char*) &(rot[2]), sizeof(float));
+        dynBin.write((char*) &(rot[3]), sizeof(float));
+
+        dynBin.write((char*) &(sca[0]), sizeof(float));
+        dynBin.write((char*) &(sca[1]), sizeof(float));
+        dynBin.write((char*) &(sca[2]), sizeof(float));
+      }
+    }
+  }
+  
+  dynBin.close();
   return std::string("");
 }

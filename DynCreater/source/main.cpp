@@ -1,5 +1,13 @@
 #include "Convertor.h"
 
+// Remember:
+// During animation:
+//  0> select all bones, add k for adding keyframe
+//  1> set interpolation to linear (setting cubic will add unecessary data)
+// 
+// During export:
+//  0> select gtlf + bin
+//  1> unselect sampling rate (very important, otherwise multiple keyframes)
 
 int main(int argc, char** argv)
 {

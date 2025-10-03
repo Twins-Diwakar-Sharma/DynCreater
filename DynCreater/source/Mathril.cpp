@@ -933,6 +933,7 @@ Vec3 operator*(Mat3&& m, Vec3&& v)
 }
 
 
+
 std::ostream& operator<<(std::ostream& os, const Mat3& m)
 {
     for(int i=0; i<3; i++)
@@ -1460,4 +1461,33 @@ std::ostream& operator<<(std::ostream& os, const Quat& q)
 {
     os << "[" << q.data[0] << ", " << q.data[1] << "i, " << q.data[2] << "j, " << q.data[3] << "k]";
     return os;
+}
+
+// forward declared function (dependent on quaternion therefore lastly declared
+Mat3::operator Quat() const
+{
+  float t = 0;
+  Quat q;
+  if (data[2][2] < 0) {
+      if (data[0][0] > data[1][1]) {
+          t = 1 + data[0][0] - data[1][1] - data[2][2];
+          q =  Quat(data[0][1]+data[1][0], data[2][0]+data[0][2], data[1][2]-data[2][1], t );
+      }
+      else {
+          t = 1 -data[0][0] + data[1][1] -data[2][2];
+          q = Quat( data[2][0]-data[0][2],  data[0][1]+data[1][0], t, data[1][2]+data[2][1]);
+      }
+  }
+  else {
+      if (data[0][0] < - data[1][1]) {
+          t = 1 -data[0][0] - data[1][1] + data[2][2];
+          q = Quat(data[0][1]-data[1][0], data[2][0]+ data[0][2], data[1][2] + data[2][1], t );
+      }
+      else {
+          t = 1 + data[0][0] + data[1][1] + data[2][2];
+          q = Quat(t, data[1][2]-data[2][1], data[2][0]-data[0][2], data[0][1]-data[1][0]);
+      }
+  }
+  float mag = 0.5f / sqrt(t);
+  return (mag * q);
 }

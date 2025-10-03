@@ -157,7 +157,7 @@ class Mat2
         friend std::ostream& operator<<(std::ostream& os, const Mat2& m);
 };
 
-
+class Quat; //forward declaration
   
 class Mat3
 {
@@ -196,7 +196,8 @@ class Mat3
         friend Vec3 operator*(Mat3& m, Vec3&& v);
         friend Vec3 operator*(Mat3&& m, Vec3& v);
         friend Vec3 operator*(Mat3&& m, Vec3&& v);
-
+        
+        explicit operator Quat() const;
 
         friend std::ostream& operator<<(std::ostream& os, const Mat3& v);
 
