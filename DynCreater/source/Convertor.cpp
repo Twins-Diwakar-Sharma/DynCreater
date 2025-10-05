@@ -113,6 +113,7 @@ std::string dyn::convert(std::string fullPath)
                 invBindMatrices[k][1][0]/scaleFromMat[0], invBindMatrices[k][1][1]/scaleFromMat[1], invBindMatrices[k][1][2]/scaleFromMat[2],
                 invBindMatrices[k][2][0]/scaleFromMat[0], invBindMatrices[k][2][1]/scaleFromMat[1], invBindMatrices[k][2][2]/scaleFromMat[2]);
     Quat rotQuat = (Quat)(rotMat);
+    invBindTuple[k] = std::make_tuple(posFromMat, rotQuat, scaleFromMat);
   }
 
 
@@ -294,6 +295,29 @@ std::string dyn::convert(std::string fullPath)
   for(unsigned int i=0; i<indicesSize; i++)
   {
     dynBin.write((char*) &(indices[i]), sizeof(unsigned int));
+  }
+
+  // inv bind quat rot pos
+  unsigned int invBindSize = invBindTuple.size();
+  dynBin.write((char*) &invBindSize, sizeof(unsigned int));
+  for(unsigned int i=0; i<invBindTuple.size(); i++)
+  {
+    Vec3 pos = std::get<0>(invBindTuple[i]);
+    Quat rot = std::get<1>(invBindTuple[i]);
+    Vec3 sca = std::get<2>(invBindTuple[i]);
+
+    dynBin.write((char*) &(pos[0]), sizeof(float));
+    dynBin.write((char*) &(pos[1]), sizeof(float));
+    dynBin.write((char*) &(pos[2]), sizeof(float));
+
+    dynBin.write((char*) &(rot[0]), sizeof(float));
+    dynBin.write((char*) &(rot[1]), sizeof(float));
+    dynBin.write((char*) &(rot[2]), sizeof(float));
+    dynBin.write((char*) &(rot[3]), sizeof(float));
+
+    dynBin.write((char*) &(sca[0]), sizeof(float));
+    dynBin.write((char*) &(sca[1]), sizeof(float));
+    dynBin.write((char*) &(sca[2]), sizeof(float));
   }
   
   // bones information
