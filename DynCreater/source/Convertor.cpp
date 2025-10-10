@@ -116,13 +116,21 @@ std::string dyn::convert(std::string fullPath)
     invBindTuple[k] = std::make_tuple(posFromMat, rotQuat, scaleFromMat);
   }
 
-
+  
+  unsigned int totalBones = (unsigned int)(data["skins"][0]["joints"].size()); 
   std::cout << data["skins"][0]["joints"].size() << std::endl;
+  std::vector<std::string> boneNameJointIndex(totalBones);
+  std::vector<int> nodeToJointIndex(totalBones);
+  std::vector<int> jointIndexToNode(totalBones);
   for(int i=0; i<data["skins"][0]["joints"].size(); i++)
   {
     int index = data["skins"][0]["joints"][i];
-    std::cout << index << " : "  << data["nodes"][index]["name"] << std::endl;
+    std::cout << i << " -> " << index << " : "  << data["nodes"][index]["name"] << std::endl;
+    boneNameJointIndex[i] = std::string(data["nodes"][index]["name"]);
+    nodeToJointIndex[index] = i;
+    jointIndexToNode[i] = index;
   }
+
   
   // list names of bones in index as present in joints arrray
   // for each bone index, list the index of children, first list vector size of children, then indices
@@ -156,7 +164,7 @@ std::string dyn::convert(std::string fullPath)
     {
       // instead of index, we use the order as in skins[0].joints, why idk
       //unsigned int asliJointIndex = data["skins"][0]["joints"][jointIndex]; // yeh mein kyun kar rha hoon? patanhi
-      unsigned int asliJointIndex = jointIndex;
+      unsigned int asliJointIndex = jointIndexToNode[jointIndex];
       // iterate channels, find accessor no for translation, rotation, scale, for current jointNo
       unsigned int posIndex=-1, rotIndex=-1, scaIndex=-1;
       for(unsigned int chan=0; chan<data["animations"][animIndex]["channels"].size(); chan++)
@@ -242,7 +250,8 @@ std::string dyn::convert(std::string fullPath)
       std::cout << "keyframed loop starts" << std::endl;
       for(unsigned int key=0; key<nKeys; key++)
       {
-        anims[animIndex][key][asliJointIndex] = std::make_tuple(Vec3(jointPositions[key]), Quat(jointRotations[key]), Vec3(jointScales[key]));
+        //anims[animIndex][key][asliJointIndex] = std::make_tuple(Vec3(jointPositions[key]), Quat(jointRotations[key]), Vec3(jointScales[key]));
+        anims[animIndex][key][jointIndex] = std::make_tuple(Vec3(jointPositions[key]), Quat(jointRotations[key]), Vec3(jointScales[key]));
       }
 
     }
@@ -260,7 +269,7 @@ std::string dyn::convert(std::string fullPath)
     interleavedData[i*comps + 2] = position[i][2];
 
     interleavedData[i*comps + 3] = texCoord[i][0];
-    interleavedData[i*comps + 4] = texCoord[i][1];
+    interleavedData[i*comps + 4] = 1.0f - texCoord[i][1];
 
     interleavedData[i*comps + 5] = normal[i][0];
     interleavedData[i*comps + 6] = normal[i][1];
@@ -326,21 +335,27 @@ std::string dyn::convert(std::string fullPath)
   dynBin.write((char*) &(jointsSize), sizeof(unsigned int));
   for(unsigned int i=0; i<jointsSize; i++)
   {
+
     // size of string
-    std::string name = std::string(data["nodes"][i]["name"]);
+    std::string name = boneNameJointIndex[i];
     unsigned int sizeString = name.size();
     dynBin.write((char*) &(sizeString), sizeof(unsigned int));
     for(unsigned int ch=0; ch<sizeString; ch++)
     {
       dynBin.write((char*) &(name[ch]), sizeof(char));
     }
-    unsigned int numChildren = data["nodes"][i].contains("children") ? (unsigned int)(data["nodes"][i]["children"]).size() : 0;
+    unsigned int nodeIndex = jointIndexToNode[i];
+    unsigned int numChildren = data["nodes"][nodeIndex].contains("children") ? (unsigned int)(data["nodes"][nodeIndex]["children"]).size() : 0;
     dynBin.write((char*) &(numChildren), sizeof(unsigned int));
+    std::cout << name << " =:=> " ;
     for(unsigned int kid = 0; kid < numChildren; kid++)
     {
-      unsigned int kidIndex = (unsigned int)(data["nodes"][i]["children"][kid]);
+      unsigned int kidNodeIndex = (unsigned int)(data["nodes"][nodeIndex]["children"][kid]);
+      unsigned int kidIndex = nodeToJointIndex[kidNodeIndex];
       dynBin.write((char*) &(kidIndex), sizeof(unsigned int));
+        std::cout << boneNameJointIndex[kidIndex] << " ";
     }
+      std::cout << std::endl;
   }
 
   
