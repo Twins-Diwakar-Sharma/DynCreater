@@ -421,11 +421,12 @@ std::string dyn::convert(std::string fullPath)
     dynBin.write((char*) &(nKeys), sizeof(unsigned int));
     for(unsigned int key=0; key<nKeys; key++)
     {
-      for(unsigned int bone; bone<jointsSize; bone++)
+      for(unsigned int bone=0; bone<jointsSize; bone++)
       {
-        Vec3 pos = std::get<0>(anims[animIndex][key][bone]);
-        Quat rot = std::get<1>(anims[animIndex][key][bone]);
-        Vec3 sca = std::get<2>(anims[animIndex][key][bone]);
+        Vec3& pos = std::get<0>(anims[animIndex][key][bone]);
+        Quat& rot = std::get<1>(anims[animIndex][key][bone]);
+        Vec3& sca = std::get<2>(anims[animIndex][key][bone]);
+
 
         dynBin.write((char*) &(pos[0]), sizeof(float));
         dynBin.write((char*) &(pos[1]), sizeof(float));
