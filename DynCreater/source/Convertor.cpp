@@ -86,11 +86,13 @@ std::string dyn::convert(std::string fullPath)
     gltfBin.read((char*) &(indices[i]), sizeof(unsigned short));
   }
 
-
-  // 6 invBindMatrices stored in column major way in gltf
+/*
+  // 6 invBindMatrice storex ie colum major way in gltf
   std::vector<Mat4> invBindMatrices(data["accessors"][6]["count"]);
+  std::cout << "inverse bind matrices are: " << std::endl;
   for(unsigned int k=0; k<invBindMatrices.size(); k++)
   {
+      std::cout << " {< " << k << " >} " << std::endl;
     for(unsigned int col=0; col<4; col++) // col major
     {
       for(unsigned int row=0; row<4; row++)
@@ -98,6 +100,9 @@ std::string dyn::convert(std::string fullPath)
         gltfBin.read((char*) &(invBindMatrices[k][row][col]), sizeof(float));
       }
     }
+
+      std::cout << invBindMatrices[k] << std::endl;
+      std::cout << std::endl;
   }
   
   // convert matrix to pos, quat, scale
@@ -115,6 +120,7 @@ std::string dyn::convert(std::string fullPath)
     Quat rotQuat = (Quat)(rotMat);
     invBindTuple[k] = std::make_tuple(posFromMat, rotQuat, scaleFromMat);
   }
+*/
 
   
   unsigned int totalBones = (unsigned int)(data["skins"][0]["joints"].size()); 
@@ -131,6 +137,48 @@ std::string dyn::convert(std::string fullPath)
     jointIndexToNode[i] = index;
   }
 
+
+  // pos rot scale
+  std::vector<std::tuple<Vec3,Quat,Vec3>> invBindTuple(totalBones);
+  for(unsigned int ji=0; ji<totalBones; ji++)
+  {
+    unsigned int nodeIndex = jointIndexToNode[ji];
+    nlohmann::json& jointNodeData = data["nodes"][nodeIndex];
+    Vec3 position(0,0,0); 
+    if(jointNodeData.contains("translation"))
+    {
+      for(unsigned int i=0; i<3; i++)
+      {
+        position[i] = jointNodeData["translation"][i];
+      }
+      // invert position
+      position = -1.0 * position;
+    }
+    Quat rotation(1,0,0,0);
+    if(jointNodeData.contains("rotation"))
+    {
+      Vec4 nakliRotation(0,0,0,1);
+      for(unsigned int i=0; i<4; i++)
+      {
+        nakliRotation[i] = jointNodeData["rotation"][i];
+      }
+      // invert rotation
+      rotation = ~(Quat(nakliRotation[3], nakliRotation[0], nakliRotation[1], nakliRotation[2]));
+    }
+    Vec3 scale(1,1,1);
+    if(jointNodeData.contains("scale"))
+    {
+      for(unsigned int i=0; i<3; i++)
+      {
+        scale[i] = jointNodeData["scale"][i]; 
+      }
+      // invert scale
+      scale = Vec3(1.0/scale[0], 1.0/scale[1], 1.0/scale[2]);
+    }
+
+    invBindTuple[ji] = std::make_tuple(position, rotation, scale);
+  }
+
   
   // list names of bones in index as present in joints arrray
   // for each bone index, list the index of children, first list vector size of children, then indices
@@ -143,7 +191,6 @@ std::string dyn::convert(std::string fullPath)
   unsigned int nAnims = data["animations"].size();
   unsigned int nJoints = data["skins"][0]["joints"].size();
   std::vector<std::vector<std::vector<std::tuple<Vec3,Quat,Vec3>>>> anims(nAnims);
-  std::cout << "nAnims : " << nAnims << " && nJoints : " << nJoints << std::endl;
   for(unsigned int animIndex=0; animIndex < nAnims; animIndex++)
   {
     unsigned int accessorNo = data["animations"][animIndex]["samplers"][0]["input"];
@@ -155,10 +202,7 @@ std::string dyn::convert(std::string fullPath)
     {
       anims[animIndex].push_back(std::vector<std::tuple<Vec3,Quat,Vec3>>(nJoints));
     }
-    std::cout << anims[animIndex].size() << std::endl;
-    std::cout << anims[animIndex][1].size() << std::endl;
 
-      std::cout << "joint loop" << std::endl;
 
     for(unsigned int jointIndex=0; jointIndex < nJoints; jointIndex++)
     {
@@ -192,7 +236,6 @@ std::string dyn::convert(std::string fullPath)
         }    
       }
 
-      std::cout << "fetch pos rot scale " << std::endl;
       unsigned int buffViewNo = (unsigned int)(data["accessors"][posIndex]["bufferView"]);
       byteOffset = (unsigned int) data["bufferViews"][buffViewNo]["byteOffset"];
       gltfBin.seekg(byteOffset);
@@ -207,7 +250,6 @@ std::string dyn::convert(std::string fullPath)
         }
       }
 
-      std::cout << "done joint pos " << std::endl;
       
       buffViewNo = (unsigned int)(data["accessors"][rotIndex]["bufferView"]);
       byteOffset = (unsigned int) data["bufferViews"][buffViewNo]["byteOffset"];
@@ -228,7 +270,6 @@ std::string dyn::convert(std::string fullPath)
       }
 
 
-      std::cout << "done joint rot " << std::endl;
       
       buffViewNo = (unsigned int)(data["accessors"][scaIndex]["bufferView"]);
       byteOffset = (unsigned int)data["bufferViews"][buffViewNo]["byteOffset"];
@@ -245,9 +286,7 @@ std::string dyn::convert(std::string fullPath)
       }
 
 
-      std::cout << "done joint scale " << std::endl;
       
-      std::cout << "keyframed loop starts" << std::endl;
       for(unsigned int key=0; key<nKeys; key++)
       {
         //anims[animIndex][key][asliJointIndex] = std::make_tuple(Vec3(jointPositions[key]), Quat(jointRotations[key]), Vec3(jointScales[key]));
@@ -309,11 +348,17 @@ std::string dyn::convert(std::string fullPath)
   // inv bind quat rot pos
   unsigned int invBindSize = invBindTuple.size();
   dynBin.write((char*) &invBindSize, sizeof(unsigned int));
+  std::cout << "Inverse bind Joint Data " << std::endl;
   for(unsigned int i=0; i<invBindTuple.size(); i++)
   {
+    std::cout << " <{ " << i <<  " }> " << std::endl;
     Vec3 pos = std::get<0>(invBindTuple[i]);
     Quat rot = std::get<1>(invBindTuple[i]);
     Vec3 sca = std::get<2>(invBindTuple[i]);
+
+    std::cout << "pos : " << pos << std::endl;
+    std::cout << "rot : " << rot << std::endl;
+    std::cout << "sca : " << sca << std::endl;
 
     dynBin.write((char*) &(pos[0]), sizeof(float));
     dynBin.write((char*) &(pos[1]), sizeof(float));
