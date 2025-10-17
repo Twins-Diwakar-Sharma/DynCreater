@@ -25,6 +25,33 @@ std::string dyn::convert(std::string fullPath)
   nlohmann::json data = nlohmann::json::parse(std::ifstream(fullPath));
   std::ifstream gltfBin(dir + name + ".bin", std::ios::in | std::ios::binary);
 
+  Vec3 globalTranslation(0,0,0);
+  Vec3 globalScale(1,1,1);
+  Quat globalRotation(1,0,0,0);
+
+  // assuming only 1 node
+  unsigned int armatureNodeIndex = data["scenes"][0]["nodes"][0];
+  for(unsigned int i=0; i<3; i++)
+  {
+    if(data["nodes"][armatureNodeIndex].contains("scale"))
+      globalScale[i] = data["nodes"][armatureNodeIndex]["scale"][i];
+    
+    if(data["nodes"][armatureNodeIndex].contains("translation"))
+      globalTranslation[i] = data["nodes"][armatureNodeIndex]["translation"][i];
+
+    if(data["nodes"][armatureNodeIndex].contains("rotation"))
+      globalRotation[i+1] = data["nodes"][armatureNodeIndex]["rotation"][i];
+  }
+  if(data["nodes"][armatureNodeIndex].contains("rotation"))
+    globalRotation[0] = data["nodes"][armatureNodeIndex]["rotation"][3];
+  
+  std::cout << "global translation, rotation, scale are: " << std::endl;
+  std::cout << globalTranslation << std::endl;
+  std::cout << globalRotation << std::endl;
+  std::cout << globalScale << std::endl;
+
+  // not using globalRotation
+
   unsigned int attrib_index[6];
   unsigned int pos_index = data["meshes"][0]["primitives"][0]["attributes"]["POSITION"];
   unsigned int norm_index = data["meshes"][0]["primitives"][0]["attributes"]["NORMAL"];
@@ -85,8 +112,7 @@ std::string dyn::convert(std::string fullPath)
   {
     gltfBin.read((char*) &(indices[i]), sizeof(unsigned short));
   }
-
-/*
+  
   // 6 invBindMatrice storex ie colum major way in gltf
   std::vector<Mat4> invBindMatrices(data["accessors"][6]["count"]);
   std::cout << "inverse bind matrices are: " << std::endl;
@@ -105,24 +131,6 @@ std::string dyn::convert(std::string fullPath)
       std::cout << std::endl;
   }
   
-  // convert matrix to pos, quat, scale
-  std::vector<std::tuple<Vec3,Quat,Vec3>> invBindTuple(invBindMatrices.size());
-  for(unsigned int k=0; k<invBindTuple.size(); k++)
-  {
-    Vec3 scaleFromMat;
-    scaleFromMat[0] = (float)(Vec3(invBindMatrices[k][0][0], invBindMatrices[k][1][0], invBindMatrices[k][2][0]));
-    scaleFromMat[1] = (float)(Vec3(invBindMatrices[k][0][1], invBindMatrices[k][1][1], invBindMatrices[k][2][1]));
-    scaleFromMat[2] = (float)(Vec3(invBindMatrices[k][0][2], invBindMatrices[k][1][2], invBindMatrices[k][2][2]));
-    Vec3 posFromMat(invBindMatrices[k][0][3], invBindMatrices[k][1][3], invBindMatrices[k][2][3]);
-    Mat3 rotMat(invBindMatrices[k][0][0]/scaleFromMat[0], invBindMatrices[k][0][1]/scaleFromMat[1], invBindMatrices[k][0][2]/scaleFromMat[2],
-                invBindMatrices[k][1][0]/scaleFromMat[0], invBindMatrices[k][1][1]/scaleFromMat[1], invBindMatrices[k][1][2]/scaleFromMat[2],
-                invBindMatrices[k][2][0]/scaleFromMat[0], invBindMatrices[k][2][1]/scaleFromMat[1], invBindMatrices[k][2][2]/scaleFromMat[2]);
-    Quat rotQuat = (Quat)(rotMat);
-    invBindTuple[k] = std::make_tuple(posFromMat, rotQuat, scaleFromMat);
-  }
-*/
-
-  
   unsigned int totalBones = (unsigned int)(data["skins"][0]["joints"].size()); 
   std::cout << data["skins"][0]["joints"].size() << std::endl;
   std::vector<std::string> boneNameJointIndex(totalBones);
@@ -136,6 +144,28 @@ std::string dyn::convert(std::string fullPath)
     nodeToJointIndex[index] = i;
     jointIndexToNode[i] = index;
   }
+
+
+  // convert matrix to pos, quat, scale
+  std::vector<std::tuple<Vec3,Quat,Vec3>> invBindTupleOld(invBindMatrices.size());
+  for(unsigned int k=0; k<invBindTupleOld.size(); k++)
+  {
+
+    unsigned int nodeIndex = jointIndexToNode[k];
+
+    Vec3 scaleFromMat;
+    scaleFromMat[0] = (float)(Vec3(invBindMatrices[k][0][0], invBindMatrices[k][1][0], invBindMatrices[k][2][0]));
+    scaleFromMat[1] = (float)(Vec3(invBindMatrices[k][0][1], invBindMatrices[k][1][1], invBindMatrices[k][2][1]));
+    scaleFromMat[2] = (float)(Vec3(invBindMatrices[k][0][2], invBindMatrices[k][1][2], invBindMatrices[k][2][2]));
+    Vec3 posFromMat(invBindMatrices[k][0][3], invBindMatrices[k][1][3], invBindMatrices[k][2][3]);
+    Mat3 rotMat(invBindMatrices[k][0][0]/scaleFromMat[0], invBindMatrices[k][0][1]/scaleFromMat[1], invBindMatrices[k][0][2]/scaleFromMat[2],
+                invBindMatrices[k][1][0]/scaleFromMat[0], invBindMatrices[k][1][1]/scaleFromMat[1], invBindMatrices[k][1][2]/scaleFromMat[2],
+                invBindMatrices[k][2][0]/scaleFromMat[0], invBindMatrices[k][2][1]/scaleFromMat[1], invBindMatrices[k][2][2]/scaleFromMat[2]);
+    Quat rotQuat = (Quat)(rotMat);
+    invBindTupleOld[k] = std::make_tuple(posFromMat, rotQuat, scaleFromMat);
+      std::cout << posFromMat << " -- " << rotQuat << " -- " << scaleFromMat << std::endl;
+  }
+  
 
 
   // pos rot scale
@@ -303,9 +333,21 @@ std::string dyn::convert(std::string fullPath)
   std::vector<float> interleavedData(position.size() * comps );
   for(unsigned int i=0; i<position.size(); i++)
   {
-    interleavedData[i*comps + 0] = position[i][0];
-    interleavedData[i*comps + 1] = position[i][1];
-    interleavedData[i*comps + 2] = position[i][2];
+    Vec3 modifiedPos = position[i];
+    
+    for(unsigned int v = 0; v<3; v++) 
+      modifiedPos[v] = globalScale[v] * modifiedPos[v];  //scale 
+    
+    Quat posQuat(0, modifiedPos[0], modifiedPos[1], modifiedPos[2]);
+    posQuat = globalRotation * posQuat * (~globalRotation); 
+    for(unsigned int v=0; v<3; v++)
+      modifiedPos[v] = posQuat[v+1];  //rotation
+
+    modifiedPos = globalTranslation + modifiedPos; // translation
+
+    interleavedData[i*comps + 0] = modifiedPos[0];
+    interleavedData[i*comps + 1] = modifiedPos[1];
+    interleavedData[i*comps + 2] = modifiedPos[2];
 
     interleavedData[i*comps + 3] = texCoord[i][0];
     interleavedData[i*comps + 4] = 1.0f - texCoord[i][1];
@@ -346,19 +388,13 @@ std::string dyn::convert(std::string fullPath)
   }
 
   // inv bind quat rot pos
-  unsigned int invBindSize = invBindTuple.size();
+  unsigned int invBindSize = invBindTupleOld.size();
   dynBin.write((char*) &invBindSize, sizeof(unsigned int));
-  std::cout << "Inverse bind Joint Data " << std::endl;
-  for(unsigned int i=0; i<invBindTuple.size(); i++)
+  for(unsigned int i=0; i<invBindTupleOld.size(); i++)
   {
-    std::cout << " <{ " << i <<  " }> " << std::endl;
-    Vec3 pos = std::get<0>(invBindTuple[i]);
-    Quat rot = std::get<1>(invBindTuple[i]);
-    Vec3 sca = std::get<2>(invBindTuple[i]);
-
-    std::cout << "pos : " << pos << std::endl;
-    std::cout << "rot : " << rot << std::endl;
-    std::cout << "sca : " << sca << std::endl;
+    Vec3 pos = std::get<0>(invBindTupleOld[i]);
+    Quat rot = std::get<1>(invBindTupleOld[i]);
+    Vec3 sca = std::get<2>(invBindTupleOld[i]);
 
     dynBin.write((char*) &(pos[0]), sizeof(float));
     dynBin.write((char*) &(pos[1]), sizeof(float));
@@ -392,15 +428,12 @@ std::string dyn::convert(std::string fullPath)
     unsigned int nodeIndex = jointIndexToNode[i];
     unsigned int numChildren = data["nodes"][nodeIndex].contains("children") ? (unsigned int)(data["nodes"][nodeIndex]["children"]).size() : 0;
     dynBin.write((char*) &(numChildren), sizeof(unsigned int));
-    std::cout << name << " =:=> " ;
     for(unsigned int kid = 0; kid < numChildren; kid++)
     {
       unsigned int kidNodeIndex = (unsigned int)(data["nodes"][nodeIndex]["children"][kid]);
       unsigned int kidIndex = nodeToJointIndex[kidNodeIndex];
       dynBin.write((char*) &(kidIndex), sizeof(unsigned int));
-        std::cout << boneNameJointIndex[kidIndex] << " ";
     }
-      std::cout << std::endl;
   }
 
   
@@ -427,7 +460,6 @@ std::string dyn::convert(std::string fullPath)
         Quat& rot = std::get<1>(anims[animIndex][key][bone]);
         Vec3& sca = std::get<2>(anims[animIndex][key][bone]);
 
-
         dynBin.write((char*) &(pos[0]), sizeof(float));
         dynBin.write((char*) &(pos[1]), sizeof(float));
         dynBin.write((char*) &(pos[2]), sizeof(float));
@@ -443,7 +475,12 @@ std::string dyn::convert(std::string fullPath)
       }
     }
   }
-  
+  std::cout << " [[ WARNING ]] " << std::endl;
+  std::cout << " 1> while making object in blender, remember, face of object should face -Y axis " << std::endl;
+  std::cout << " 1.1> otherwise vertex changes after exporting using +z up " << std::endl;
+  std::cout << " 2> make sure the animation's interpolation technique is LINEAR and not CUBESPLINE " << std::endl; 
+  std::cout << " 3> untick Sampling animations " << std::endl;
+  std::cout << " 4> untick all optimizations options " << std::endl;
   dynBin.close();
   return std::string("");
 }
